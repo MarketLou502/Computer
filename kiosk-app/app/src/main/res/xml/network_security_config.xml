@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  LAN-only kiosk talking to a plain http:// endpoint on the Mac Mini.
+  Android blocks cleartext traffic by default since API 28 — this opts back
+  in for every domain, which is fine here since nothing on this app ever
+  leaves the home network.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1280, height=800, initial-scale=1, user-scalable=no" />
+<title>Home Dashboard</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="dashboard">
+
+  <header class="goals-bar" id="goalsBar">
+    <h2 class="goals-title">Daily Goals</h2>
+    <div class="goals-list" id="goalsList"><!-- goal chips injected --></div>
+  </header>
+
+  <main class="main-row">
+    <section class="panel calendar-panel">
+      <h2 class="panel-title">Daily Calendar</h2>
+      <div class="calendar-scroll" id="calendarScroll">
+        <div class="calendar-track" id="calendarTrack"><!-- hours + events injected --></div>
+      </div>
+    </section>
+
+    <section class="tasks-row">
+      <div class="panel task-column" data-board="accenture">
+        <h2 class="panel-title">Accenture</h2>
+        <ul class="task-list" id="tasks-accenture"><!-- injected --></ul>
+        <form class="add-row" data-board="accenture">
+          <input type="text" placeholder="Add task…" />
+        </form>
+      </div>
+      <div class="panel task-column" data-board="personal">
+        <h2 class="panel-title">Personal</h2>
+        <ul class="task-list" id="tasks-personal"><!-- injected --></ul>
+        <form class="add-row" data-board="personal">
+          <input type="text" placeholder="Add task…" />
+        </form>
+      </div>
+      <div class="panel task-column" data-board="market-lou">
+        <h2 class="panel-title">Market Lou</h2>
+        <ul class="task-list" id="tasks-market-lou"><!-- injected --></ul>
+        <form class="add-row" data-board="market-lou">
+          <input type="text" placeholder="Add task…" />
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bottom-row">
+    <section class="panel health-panel">
+      <h2 class="panel-title">Health</h2>
+      <div class="meter-list" id="healthMeters"><!-- meters injected --></div>
+    </section>
+
+    <section class="panel financials-panel">
+      <h2 class="panel-title">Financials</h2>
+      <div class="stat-tile">
+        <div class="stat-label">Dollars spent today</div>
+        <div class="stat-value" id="spentToday">—</div>
+      </div>
+    </section>
+
+    <section class="panel grocery-panel">
+      <h2 class="panel-title">Grocery List</h2>
+      <ul class="task-list" id="groceryList"><!-- injected --></ul>
+      <form class="add-row" id="groceryAddRow">
+        <input type="text" placeholder="Add item…" />
+      </form>
+    </section>
+  </footer>
+
+  <div class="offline-badge" id="offlineBadge">showing offline demo data</div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
