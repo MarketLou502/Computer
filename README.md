@@ -130,43 +130,57 @@ what's below is the verified sequence, not a substitute for checking there.
 
 **Before starting:** Kindle Fire USB Driver (Windows), Android SDK Platform
 Tools, `amonet-crown.zip` (crown-specific — not `checkers`/`cronos`, those
-are Echo Show 5), the crown-specific `boot-root.img`, LineageOS 18.1 for
-crown (bengris32), **MindTheGapps** (for Play Store access — see the
-Home/Back redesign above for why this matters now), a micro-USB cable.
-Two ways to brick it: using the wrong model's `boot-root.img`, or wiping
-anything beyond system/data/cache in TWRP.
+are Echo Show 5), LineageOS 18.1 for crown (bengris32), a micro-USB cable.
+Compatibility gate is **hardware revision, not firmware version** — this
+needs a 2019/early-2020 manufacture batch; Amazon disabled the BootROM
+USB-download mode this exploit relies on in later revisions, and there's
+no software fix for landing on a newer batch. One way to brick it: wiping
+anything beyond system/data/cache/dalvik in TWRP.
 
-1. **Firmware, then go offline.** Complete FireOS setup, update until on
-   exactly **6.5.7.1**, then disconnect Wi-Fi so it can't patch the exploit
-   out from under you.
+1. **Confirm compatibility, don't chase a firmware number.** No specific
+   FireOS version is required — an earlier pass at this section incorrectly
+   said 6.5.7.1 and told you to force-update toward it, which had real
+   downside risk (forced OTAs could just as easily land you on a *newer,
+   patched* revision). Just confirm the device is a 2019/early-2020 unit; if
+   BROM USB-download mode isn't detected in step 2, that's what a too-new
+   batch looks like, not something to retry your way past.
 2. **Run the exploit.** Pull power, hold all three top buttons, apply power
    (shows "FASTBOOT mode"). Connect micro-USB. From an elevated command
    prompt in the `amonet-crown` folder: `fastbrick.bat`, confirm **YES**.
-   Reboots into TWRP on its own.
-3. **Unlock bootloader flags.** Pull power, hold **Mute**, apply power
-   ("Hacked fastboot mode"). `fastboot devices` to confirm detection, then
-   `fastboot oem flags 61`, `fastboot flash boot boot-root.img` (crown
-   file), `fastboot reboot`. Let it boot to FireOS home once, pull power.
-4. **Flash LineageOS + MindTheGapps.** Hold **Volume Up**, apply power
-   (TWRP again). `adb push` both the LineageOS zip and the MindTheGapps zip
-   to `/sdcard/`. In TWRP: **Wipe → Advanced Wipe** → check only **System,
-   Data, Cache** → confirm. Back to TWRP home → **Install** → select the
-   LineageOS zip → **Install Image** → without rebooting yet, **Install**
-   again → select the MindTheGapps zip → **Install Image** → then **Reboot**,
-   swipe to confirm. First boot shows LineageOS's white welcome screen.
-5. **Enable dev access.** Walk through setup. **Settings → About Tablet** →
+   Reboots straight into TWRP on its own, bootloader already unlocked —
+   nothing further needed before flashing the ROM.
+3. **Flash LineageOS.** Hold **Volume Up**, apply power (TWRP). `adb push`
+   the LineageOS zip to `/sdcard/`. In TWRP: **Wipe → Advanced Wipe** →
+   check **System, Data, Cache, Dalvik** → confirm. Back to TWRP home →
+   **Install** → select the zip → **Install Image** → **Reboot**, swipe to
+   confirm. First boot shows LineageOS's white welcome screen.
+4. **Enable dev access.** Walk through setup. **Settings → About Tablet** →
    tap build number 7×. **Settings → System → Advanced → Developer Options**
    → enable USB Debugging, approve the on-device prompt. `adb devices` from
    the laptop to confirm.
-6. **Install `kiosk-app`.** `cd kiosk-app && ./gradlew assembleDebug`, then
+5. **Install `kiosk-app`.** `cd kiosk-app && ./gradlew assembleDebug`, then
    `adb install -r app/build/outputs/apk/debug/app-debug.apk`. No HOME-role
    setup needed — see the Home/Back redesign above. Long-press the dashboard
    to open the config dialog and point it at the Mac Mini's OpenClaw URL +
    token.
-7. **Screen/power tweaks.** Settings → Display → screen timeout: Never;
+6. **Screen/power tweaks.** Settings → Display → screen timeout: Never;
    disable Daydream/screensaver. Switch `adb` to Wi-Fi (`adb tcpip 5555`
    once over USB, then `adb connect <device-ip>:5555`) so future updates
    don't need the cable.
+
+**Google Play Store — deliberately skipped for the initial install.**
+`kiosk-app` has zero dependency on GMS/Play Services, so this has no effect
+on the dashboard. What was originally in this section (**MindTheGapps**,
+`arm64`) was an unverified guess — a device-specific add-on guide (XDA
+thread 4766694) instead recommends **BitGapps**, explicitly the **ARM
+(32-bit) build, not ARM64**, despite the crown SoC being 64-bit — this ROM
+likely runs a 32-bit userspace, probably to fit the device's 1GB RAM. Only
+this build was rooted in a primary source; the `fastboot oem flags 61` /
+`boot-root.img` sequence formerly in this section was also incorrect for
+this path — that's documented under a separate "getting a rooted shell"
+section of the XDA OP for staying on *stock* FireOS, not something the
+LineageOS path needs at all. Verify current guidance on that thread before
+attempting Play Store access later.
 
 Root (Magisk) is optional and skippable — nothing `kiosk-app` does needs it,
 every command above runs over plain `adb shell`.
