@@ -163,7 +163,7 @@ because nothing but your home Wi-Fi can reach that port.
   (already implemented in `app.js`); only add a WebSocket if 30–60s
   staleness on the calendar/health widgets actually bothers you.
 
-## Planned: voice control ("Hey Computer")
+## Planned: voice control ("Computer")
 
 Not built yet — pending hardware purchase. Independent track: doesn't block
 or get blocked by the kiosk/jailbreak work above. Decision and research
@@ -187,38 +187,51 @@ Conclusion: the mic/speaker are gated behind Amazon's proprietary DSP
 firmware that was never reverse-engineered for these ROMs — same story as
 camera support on most jailbroken IoT devices. Not worth fighting.
 
-### Decision: dedicated ESP32-S3 voice satellite instead
+### Decision: Home Assistant Voice Preview Edition, custom-flashed
 
 Same "thin client, brains stay centralized" philosophy as the kiosk itself —
 add a second, purpose-built thin client for voice rather than overloading the
 display device. Wall-powered via USB-C, not battery — see the power note
 below for why that's a deliberate choice, not an oversight.
 
-- **Hardware: M5Stack Atom VoiceS3R** (~$14.50, official store:
-  [shop.m5stack.com/products/atom-echos3r-smart-speaker-dev-kit](https://shop.m5stack.com/products/atom-echos3r-smart-speaker-dev-kit))
-  — a single all-in-one unit (no separate base needed): ESP32-S3-PICO-1-N8R8
-  (dual-core Xtensa LX7, 8MB Flash + 8MB PSRAM), MEMS mic (65dB SNR), ES8311
-  24-bit audio codec. The "S3" specifically matters: it's the chip family
-  with enough compute to run wake-word detection *on the device itself*,
-  which is what makes the wake-word choice below possible without a
-  separate always-on streaming server process.
-  - Passed over: the original **ATOM Echo** (~$13.50, plain ESP32-PICO-D4,
-    no "S3") — $1 cheaper, and on-device wake word is technically possible
-    on it per community reports, but needs a non-default custom ESPHome
-    config and has reported stability issues (gets stuck in a
-    `STREAMING_MICROPHONE` state). Not worth the savings.
-  - Also available: **AtomS3R AI Chatbot Kit** (~$21.50) — same chip and
-    capability, just a two-piece controller + separate audio base instead of
-    one integrated unit. No benefit over the VoiceS3R here, more expensive.
+- **Hardware: Home Assistant Voice Preview Edition** (~$69 MSRP; buy from an
+  [authorized distributor](https://www.home-assistant.io/voice-pe/) — Seeed
+  Studio doesn't ship to the US, [ameriDroid](https://ameridroid.com/products/home-assistant-voice-preview-edition/)
+  does). Official Nabu Casa/Home Assistant hardware, not a hobbyist dev
+  board: real enclosure, physical mute switch, LED ring, dual mic array —
+  built specifically to sit visibly in a home rather than look like an
+  exposed circuit board.
+  - Considered and passed over: **M5Stack Atom VoiceS3R** (~$14.50, single
+    integrated dev-kit cube) and **AtomS3R + Echo Pyramid base** (~$40–50,
+    RGB-lit speaker base for the Atom module) — both fully capable
+    technically (same chip family, same wake-word engine), but neither
+    matches the "looks like it belongs on the counter" bar once quality —
+    not just cost — became the priority.
+  - Voice PE only ships three wake words in its official app ("Okay Nabu" /
+    "Hey Jarvis" / "Hey Mycroft"), which is why it was passed over
+    initially. It's back in because the wake-word gap turned out to be a
+    config limitation, not a hardware one — see below.
 - **Wake word: "Computer."** An official, pre-trained **`microWakeWord`**
-  model — a correction from the first pass at this section, which planned
-  around `openWakeWord` instead. `openWakeWord` (source of the earlier
-  pre-trained "hey computer" model) generally can't run locally on an ESP32
-  at all — it needs the device to continuously stream raw audio over Wi-Fi to
-  a server that does the matching remotely. `microWakeWord` runs the
-  detection on the chip itself and only sends audio once the word is
-  actually heard
+  model — a correction from the first two passes at this section, which
+  planned first around `openWakeWord`, then around a cheaper board under the
+  assumption Voice PE couldn't run a custom word at all. Neither held up:
+  `openWakeWord` (source of the original pre-trained "hey computer" model)
+  generally can't run locally on an ESP32 at all — it needs the device to
+  continuously stream raw audio over Wi-Fi to a server that does the
+  matching remotely. `microWakeWord` is the engine that actually runs
+  on-chip, sending audio only once the word is heard, and it has its own
+  separate official model simply called "Computer"
   ([esphome/micro-wake-word-models](https://github.com/esphome/micro-wake-word-models)).
+  Voice PE runs this exact same engine under the hood — Nabu Casa's app just
+  only exposes 3 of the possible model files in its dropdown. Nothing about
+  the firmware itself restricts it to those three: `micro_wake_word`'s
+  ESPHome config is just a line referencing a model file, and the device
+  flashes over USB-C through ESPHome's standard browser-based installer —
+  no soldering, one-time effort. A community project publishes exactly this
+  for Voice PE ([MorningstarOwl/wake-word-models](https://github.com/MorningstarOwl/wake-word-models),
+  "Micro Wake Word models compatible with the Home Assistant Voice PE") —
+  swap its config to point at the official "Computer" model instead of one
+  of the three defaults, reflash, done.
 
 ### Power: wall-powered, not battery — checked, not assumed
 
@@ -235,7 +248,7 @@ day to day.
 ### Backend architecture
 
 ```
-kitchen satellite (M5Stack Atom VoiceS3R, Wi-Fi only, wall-powered)
+kitchen satellite (Home Assistant Voice PE, custom-flashed, Wi-Fi only, wall-powered)
   → on-device wake word ("Computer", microWakeWord, runs on the ESP32-S3 itself)
   → streams command audio over LAN to Whisper (STT, Docker container on the Mac Mini)
   → Home Assistant Assist (intent matching)
@@ -254,8 +267,12 @@ may need the Mac Mini's IP entered manually rather than relying on discovery.
 
 ### What's not built yet (this feature specifically)
 
-- Hardware purchase — M5Stack Atom VoiceS3R,
-  [$14.50 at shop.m5stack.com](https://shop.m5stack.com/products/atom-echos3r-smart-speaker-dev-kit).
+- Hardware purchase — Home Assistant Voice Preview Edition, ~$69, via
+  [ameriDroid](https://ameridroid.com/products/home-assistant-voice-preview-edition/)
+  (Seeed Studio doesn't ship to the US).
+- The one-time custom reflash to swap in the "Computer" `microWakeWord`
+  model in place of the three stock options — see
+  [MorningstarOwl/wake-word-models](https://github.com/MorningstarOwl/wake-word-models).
 - The Docker Compose stack on the Mac Mini (Home Assistant + Whisper +
   Piper).
 - The bridge from Home Assistant Assist intents to OpenClaw's `/api/*` routes
