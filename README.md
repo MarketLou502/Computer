@@ -163,6 +163,86 @@ because nothing but your home Wi-Fi can reach that port.
   (already implemented in `app.js`); only add a WebSocket if 30–60s
   staleness on the calendar/health widgets actually bothers you.
 
+## Planned: voice control ("Hey Computer")
+
+Not built yet — pending hardware purchase. Independent track: doesn't block
+or get blocked by the kiosk/jailbreak work above. Decision and research
+captured here so it doesn't need to be re-litigated later.
+
+### Decision: don't use the Echo Show's own mic/speaker
+
+Investigated first, rejected on evidence, not guesswork:
+
+- LineageOS builds for crown have a known mic bug — records fine once per
+  boot, then goes silent on the second attempt until the device is rebooted
+  or the audio server restarted. Some builds also shipped with the mic too
+  quiet until later fixes ([XDA LineageOS 18.1 thread for crown](https://xdaforums.com/t/rom-unofficial-11-crown-lineageos-18-1-for-the-amazon-echo-show-8-2019.4766709/)).
+- No prior art: the most directly comparable community project — jailbreaking
+  crown specifically to run as a Home Assistant touchscreen dashboard —
+  covers jailbreaking and dashboard apps in depth but never touches voice; a
+  reader asking how to get the speaker working got no real answer
+  ([Home Assistant: The Complete Echo Show Jailbreak Guide](https://www.derekseaman.com/2025/11/home-assistant-hacking-your-echo-show-5-and-8.html)).
+
+Conclusion: the mic/speaker are gated behind Amazon's proprietary DSP
+firmware that was never reverse-engineered for these ROMs — same story as
+camera support on most jailbroken IoT devices. Not worth fighting.
+
+### Decision: dedicated ESP32-S3 voice satellite instead
+
+Same "thin client, brains stay centralized" philosophy as the kiosk itself —
+add a second, purpose-built thin client for voice rather than overloading the
+display device. The satellite is Wi-Fi only; it needs a power outlet on the
+kitchen island, not a wired connection to the Mac Mini.
+
+- **Hardware: M5Stack Atom Echo** (~$13.50) — chosen over the official Home
+  Assistant Voice Preview Edition (~$60; nicer enclosure, zero-flash
+  phone-based setup) specifically because of the wake-word requirement below.
+  Voice PE only ships "Okay Nabu" / "Hey Jarvis" / "Hey Mycroft," with no
+  custom option in its supported setup flow. Atom Echo needs a one-time
+  browser-based firmware flash over USB (still no lasting wired dependency on
+  the Mac Mini).
+- **Wake word: "Hey Computer."** Already exists as a pre-trained openWakeWord
+  model — no training-from-scratch needed
+  ([openwakeword.com/library/48](https://openwakeword.com/library/48)).
+- **Personalization (do this once hardware is in hand):** record a handful of
+  "Hey Computer" clips from a few realistic spots/distances in the kitchen,
+  plus a few negative clips (normal talking, appliance noise), and run them
+  through openWakeWord's training tooling
+  ([openwakeword.com/train](https://openwakeword.com/train),
+  [openwakeword.com/voices](https://openwakeword.com/voices)) — either as a
+  voice-cloning injection into the synthetic training set, or as a custom
+  verifier second-stage model. Trades away responding to other voices for
+  higher accuracy on mine specifically — a pure win for a single-person
+  apartment device.
+
+### Backend architecture
+
+```
+kitchen satellite (M5Stack Atom Echo, Wi-Fi only)
+  → on-device wake word ("Hey Computer")
+  → streams command audio over LAN to Whisper (STT, Docker container on the Mac Mini)
+  → Home Assistant Assist (intent matching)
+  → calls OpenClaw's existing /api/* routes — same surface the dashboard uses
+  → Piper (TTS, Docker container) generates the spoken reply
+  → played back on the satellite's own speaker
+```
+
+Runs as Docker Compose on the Mac Mini, alongside OpenClaw: Home Assistant
+Container + Whisper + Piper + openWakeWord, wired together via HA's Assist
+pipeline settings. Docker Desktop on macOS doesn't do local mDNS
+auto-discovery as cleanly as Linux, so first-time pairing of the satellite
+may need the Mac Mini's IP entered manually rather than relying on discovery.
+
+### What's not built yet (this feature specifically)
+
+- Hardware purchase (M5Stack Atom Echo).
+- The Docker Compose stack on the Mac Mini (Home Assistant + Whisper + Piper
+  + openWakeWord).
+- The bridge from Home Assistant Assist intents to OpenClaw's `/api/*` routes
+  — a new caller of the same routes the dashboard already needs, no new
+  OpenClaw surface beyond what's already planned below.
+- The wake-word personalization pass (needs the physical hardware first).
+
 ## What's not built yet
 
 - The OpenClaw-side `/api/*` routes themselves — `app.js`'s top comment
@@ -171,3 +251,4 @@ because nothing but your home Wi-Fi can reach that port.
   HOME app and the app drawer is never seen).
 - Anything beyond polling for freshness (see the WebSocket note above) — not
   needed until polling actually feels stale in practice.
+- Voice control — see "Planned: voice control" above.
