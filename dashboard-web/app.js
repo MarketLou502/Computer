@@ -15,10 +15,10 @@ const API_BASE = params.get('api') || ''; // same-origin by default
 const REFRESH_MS = {
   goals: 60_000,
   tasks: 60_000,
-  health: 5 * 60_000,
+  health: 60_000,
   financials: 60_000,
   grocery: 60_000,
-  calendar: 5 * 60_000,
+  calendar: 60_000,
 };
 
 const MOCK = {
