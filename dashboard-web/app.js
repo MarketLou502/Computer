@@ -46,9 +46,9 @@ const MOCK = {
     ],
   },
   health: {
-    calories: { current: 3200, target: 4000, unit: '' },
-    protein: { current: 110, target: 180, unit: 'g' },
-    workout: { current: 30, target: 45, unit: 'min' },
+    calories: { current: 3200, target: 3250, unit: '' },
+    protein: { current: 110, target: 160, unit: 'g' },
+    workout: { current: 20, target: 30, unit: 'min' },
   },
   financials: { spent_today: 47.32, currency: 'USD' },
   grocery: [
