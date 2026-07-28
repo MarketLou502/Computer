@@ -8,7 +8,6 @@ import android.net.http.SslError
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.KeyEvent
 import android.view.View
 import android.webkit.SslErrorHandler
 import android.webkit.WebResourceError
@@ -24,8 +23,10 @@ import androidx.appcompat.app.AppCompatActivity
 
 /**
  * Thin kiosk shell: fullscreen WebView pointed at the dashboard OpenClaw
- * serves on the Mac Mini. No app logic lives here beyond staying on screen,
- * staying awake, and reconnecting when the LAN link drops.
+ * serves on the Mac Mini. No app logic lives here beyond staying awake and
+ * reconnecting when the LAN link drops. Launches on boot (see BootReceiver)
+ * but is otherwise a normal app — Home/Back behave like they would for any
+ * app, dropping to LineageOS's real launcher, by design.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -186,16 +187,6 @@ class MainActivity : AppCompatActivity() {
     private fun showConnected() {
         retryDelayMs = INITIAL_RETRY_MS
         statusOverlay.visibility = View.GONE
-    }
-
-    @Deprecated("Deprecated in Java", ReplaceWith(""))
-    override fun onBackPressed() {
-        // Kiosk: swallow back navigation instead of leaving the dashboard.
-    }
-
-    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_HOME) return true
-        return super.onKeyDown(keyCode, event)
     }
 
     companion object {

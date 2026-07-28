@@ -48,7 +48,6 @@ const MOCK = {
   health: {
     calories: { current: 3200, target: 4000, unit: '' },
     protein: { current: 110, target: 180, unit: 'g' },
-    water: { current: 1800, target: 3000, unit: 'ml' },
     workout: { current: 30, target: 45, unit: 'min' },
   },
   financials: { spent_today: 47.32, currency: 'USD' },
@@ -108,6 +107,7 @@ function renderGoals(goals) {
     chip.innerHTML = `<span class="dot"></span><span class="label">${escapeHtml(goal.label)}</span>`;
     chip.addEventListener('click', async () => {
       const nextDone = !goal.done;
+      goal.done = nextDone;
       chip.classList.toggle('done', nextDone);
       try {
         await api(`/api/goals/${goal.id}`, {
@@ -133,6 +133,7 @@ function renderTasks(board, items) {
     li.innerHTML = `<span class="box"></span><span class="text">${escapeHtml(item.text)}</span>`;
     li.addEventListener('click', async () => {
       const nextDone = !item.done;
+      item.done = nextDone;
       li.classList.toggle('done', nextDone);
       try {
         await api(`/api/tasks/${board}/${item.id}`, {
@@ -161,7 +162,6 @@ function wireAddRow(formEl, onAdd) {
 const METER_COLORS = {
   calories: 'var(--slot-blue)',
   protein: 'var(--slot-green)',
-  water: 'var(--slot-magenta)',
   workout: 'var(--slot-yellow)',
 };
 
@@ -204,6 +204,7 @@ function renderGrocery(items) {
     li.innerHTML = `<span class="box"></span><span class="text">${escapeHtml(item.text)}</span>`;
     li.addEventListener('click', async () => {
       const nextDone = !item.done;
+      item.done = nextDone;
       li.classList.toggle('done', nextDone);
       try {
         await api(`/api/grocery/${item.id}`, {

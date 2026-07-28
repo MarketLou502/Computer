@@ -5,9 +5,9 @@ import android.content.Context
 import android.content.Intent
 
 /**
- * Backup launch path for ROMs where registering as the default HOME app
- * doesn't reliably auto-start on boot. Harmless no-op if MainActivity is
- * already the foreground/HOME activity by the time this fires.
+ * Launches the dashboard on boot. This is the only auto-launch mechanism —
+ * MainActivity is a normal app, not a HOME/launcher replacement, so nothing
+ * else brings it to the foreground automatically.
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {

@@ -114,54 +114,103 @@ because nothing but your home Wi-Fi can reach that port.
   `adb connect <device-ip>:5555`. From then on `adb install -r …` and
   `adb logcat` both work wirelessly. Re-run `adb tcpip 5555` if the device
   reboots and drops the pairing.
-- After install, if the app isn't already the default launcher:
-  `adb shell cmd package set-home-activity com.aaron.echodash/.MainActivity`
-  (needs the "set as HOME" step below to have made it eligible first).
+- Nothing else to configure after install — `BootReceiver` launches the
+  dashboard on boot, and Home/Back deliberately behave like they would for
+  any normal app (see "Home/Back behavior" below), so there's no HOME-role
+  step to worry about.
 - Watch logs live with `adb logcat | grep -i echodash` while testing
   reconnect/retry behavior (e.g. turn off the Mac Mini's Wi-Fi mid-session).
 
+## Jailbreak steps (crown → LineageOS)
+
+Real brick risk — this isn't a "follow along casually" process. Treat the
+[crown XDA thread](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-show-8-1st-gen-2019-crown.4766687/)
+as the live source of truth for exact current download links/file versions;
+what's below is the verified sequence, not a substitute for checking there.
+
+**Before starting:** Kindle Fire USB Driver (Windows), Android SDK Platform
+Tools, `amonet-crown.zip` (crown-specific — not `checkers`/`cronos`, those
+are Echo Show 5), the crown-specific `boot-root.img`, LineageOS 18.1 for
+crown (bengris32), **MindTheGapps** (for Play Store access — see the
+Home/Back redesign above for why this matters now), a micro-USB cable.
+Two ways to brick it: using the wrong model's `boot-root.img`, or wiping
+anything beyond system/data/cache in TWRP.
+
+1. **Firmware, then go offline.** Complete FireOS setup, update until on
+   exactly **6.5.7.1**, then disconnect Wi-Fi so it can't patch the exploit
+   out from under you.
+2. **Run the exploit.** Pull power, hold all three top buttons, apply power
+   (shows "FASTBOOT mode"). Connect micro-USB. From an elevated command
+   prompt in the `amonet-crown` folder: `fastbrick.bat`, confirm **YES**.
+   Reboots into TWRP on its own.
+3. **Unlock bootloader flags.** Pull power, hold **Mute**, apply power
+   ("Hacked fastboot mode"). `fastboot devices` to confirm detection, then
+   `fastboot oem flags 61`, `fastboot flash boot boot-root.img` (crown
+   file), `fastboot reboot`. Let it boot to FireOS home once, pull power.
+4. **Flash LineageOS + MindTheGapps.** Hold **Volume Up**, apply power
+   (TWRP again). `adb push` both the LineageOS zip and the MindTheGapps zip
+   to `/sdcard/`. In TWRP: **Wipe → Advanced Wipe** → check only **System,
+   Data, Cache** → confirm. Back to TWRP home → **Install** → select the
+   LineageOS zip → **Install Image** → without rebooting yet, **Install**
+   again → select the MindTheGapps zip → **Install Image** → then **Reboot**,
+   swipe to confirm. First boot shows LineageOS's white welcome screen.
+5. **Enable dev access.** Walk through setup. **Settings → About Tablet** →
+   tap build number 7×. **Settings → System → Advanced → Developer Options**
+   → enable USB Debugging, approve the on-device prompt. `adb devices` from
+   the laptop to confirm.
+6. **Install `kiosk-app`.** `cd kiosk-app && ./gradlew assembleDebug`, then
+   `adb install -r app/build/outputs/apk/debug/app-debug.apk`. No HOME-role
+   setup needed — see the Home/Back redesign above. Long-press the dashboard
+   to open the config dialog and point it at the Mac Mini's OpenClaw URL +
+   token.
+7. **Screen/power tweaks.** Settings → Display → screen timeout: Never;
+   disable Daydream/screensaver. Switch `adb` to Wi-Fi (`adb tcpip 5555`
+   once over USB, then `adb connect <device-ip>:5555`) so future updates
+   don't need the cable.
+
+Root (Magisk) is optional and skippable — nothing `kiosk-app` does needs it,
+every command above runs over plain `adb shell`.
+
 ## "crown" jailbreak quirks that affect a kiosk app
 
-- **Amazon's launcher (`com.amazon.paladin` / the Alexa home UI) will keep
-  re-grabbing the foreground unless it's dealt with.** Per the crown
-  jailbreak's own documented steps, either disable that package outright
-  (`adb shell pm disable-user --user 0 com.amazon.paladin`, or the
-  equivalent Magisk module if you're on rooted stock FireOS rather than a
-  full LineageOS flash) or make sure `kiosk-app` wins the HOME role and stays
-  set. `AndroidManifest.xml` already registers `MainActivity` for both
-  `CATEGORY_LAUNCHER` and `CATEGORY_HOME` so it's eligible to be picked as
-  the default HOME app — set it explicitly with `adb shell cmd package
-  set-home-activity com.aaron.echodash/.MainActivity` rather than relying on
-  Android's disambiguation dialog (there's no way to tap "always" on a
-  device with no other input method once this app is fullscreen).
-- **Rooted-stock-FireOS vs. full LineageOS behave differently on boot.** On
-  a full LineageOS flash, being the default HOME app is normally sufficient
-  — Android launches your HOME app on every boot by design, and
-  `BootReceiver` is redundant but harmless. On rooted stock FireOS with the
-  bouncer disabled, Amazon's own boot-time services are still present
-  underneath and can re-assert the Alexa UI after a reboot even if you
-  disabled Paladin — if you see the dashboard get replaced by the Alexa
-  screen after a *reboot* specifically (but not otherwise), that's what's
-  happening, and the fix is disabling the specific Amazon boot-time
-  service/receiver responsible (varies by FireOS build — check the crown
-  XDA thread's current list of packages, since Amazon has changed these
-  across OTA updates).
+- **Home/Back behavior is deliberate, not a gap.** `MainActivity` doesn't
+  override Back or Home — leaving the dashboard via either drops you on
+  LineageOS's real home screen, same as any normal app, and reopening the
+  dashboard is just tapping its icon like any other app. This was a
+  conscious design choice (see git history) over the alternative — making
+  `kiosk-app` the HOME app and swallowing Back/Home so the dashboard could
+  never be left accidentally — once it was clear the goal was "easy for
+  anyone in the house to step in and out of," not "locked down."
+- **Amazon's launcher isn't a concern on this plan.** `com.amazon.paladin` /
+  the Alexa home UI only exists on *rooted stock FireOS* — this project's
+  jailbreak plan does a full LineageOS flash, which wipes FireOS entirely,
+  Paladin included. Nothing re-grabs the foreground here. (If a future
+  reinstall ever ends up on rooted stock FireOS instead, that package would
+  need disabling — `adb shell pm disable-user --user 0 com.amazon.paladin`
+  — but that's not this project's path.)
+- **`BootReceiver` is the only auto-launch mechanism, not a backup.** Since
+  `kiosk-app` deliberately isn't registered as HOME, Android has no built-in
+  reason to launch it on boot — `BootReceiver`'s `BOOT_COMPLETED` listener is
+  what makes the dashboard the first thing shown after a reboot.
 - **Screen timeout / screensaver is a separate setting from what this app
   controls.** `FLAG_KEEP_SCREEN_ON` keeps the screen alive while
   `MainActivity` is in the foreground, but also turn off Android's own
   screen-timeout in Settings → Display (set to "Never") and, on LineageOS,
   disable Daydream/screensaver — otherwise a system-level screensaver can
   still cover the dashboard even with the activity flag set.
-- **No Play Services assumed.** Nothing here depends on GMS/Play Services —
-  intentional, since a LineageOS crown flash may or may not have GApps
-  installed. If you later want push-triggered wake (OpenClaw nudging the
-  screen the instant a goal is checked off remotely, say), that would need
-  either a persistent WebSocket held open in the WebView's JS (works with no
-  Play Services, just don't let Doze kill it — not a concern here since the
-  device is always plugged in and never idles into Doze the way a battery
-  phone would) or FCM if GApps are present. Start with polling
-  (already implemented in `app.js`); only add a WebSocket if 30–60s
-  staleness on the calendar/health widgets actually bothers you.
+- **Play Services aren't required by anything here, but the plan flashes
+  MindTheGapps anyway.** `kiosk-app` itself never depends on GMS/Play
+  Services — the dashboard is a plain WebView, nothing about it needs Google
+  APIs. MindTheGapps is purely so the device is a usable general-purpose
+  tablet (Play Store access) when someone steps out of the dashboard, per
+  the Home/Back redesign above — see the jailbreak steps for where it gets
+  flashed. If you later want push-triggered wake (OpenClaw nudging the
+  screen the instant a goal is checked off remotely, say), GApps being
+  present opens up FCM as an option; a persistent WebSocket in the WebView's
+  JS works either way (device is always plugged in, never idles into Doze
+  the way a battery phone would). Start with polling (already implemented
+  in `app.js`); only add a WebSocket if 30–60s staleness on the
+  calendar/health widgets actually bothers you.
 
 ## Planned: voice control ("Computer")
 
@@ -288,8 +337,9 @@ may need the Mac Mini's IP entered manually rather than relying on discovery.
 
 - The OpenClaw-side `/api/*` routes themselves — `app.js`'s top comment
   documents the exact request/response shape each widget expects.
-- A launcher icon (cosmetic only — irrelevant once this app is the default
-  HOME app and the app drawer is never seen).
+- A real launcher icon — actually matters now (unlike when this app was
+  planned as the HOME replacement): it's what someone taps in the app drawer
+  to get back to the dashboard after stepping away from it.
 - Anything beyond polling for freshness (see the WebSocket note above) — not
   needed until polling actually feels stale in practice.
 - Voice control — see "Planned: voice control" above.

@@ -12,12 +12,11 @@
         android:networkSecurityConfig="@xml/network_security_config">
 
         <!--
-          Registers both as a normal launcher entry AND as a HOME option, so it
-          can be set as the device's default launcher (replacing Amazon's) via
-          Settings > Apps > Default apps, or `cmd package set-home-activity` over
-          adb. Being the default HOME app is what makes "launch on boot" work
-          natively; BootReceiver below is a belt-and-suspenders backup for ROMs
-          where that alone isn't reliable.
+          Normal launcher entry only — deliberately NOT a HOME/launcher
+          replacement. Home/Back are left alone so they behave like they
+          would for any app, dropping to LineageOS's real launcher. Showing
+          up as a regular app-drawer icon means it can be reopened by hand;
+          BootReceiver is what makes it the first thing shown after boot.
         -->
         <activity
             android:name=".MainActivity"
@@ -29,11 +28,6 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.HOME" />
-                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 
