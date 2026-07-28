@@ -20,6 +20,9 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 
 /**
  * Thin kiosk shell: fullscreen WebView pointed at the dashboard OpenClaw
@@ -85,15 +88,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyImmersiveMode() {
-        @Suppress("DEPRECATION")
-        window.decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            )
+        // The old View.SYSTEM_UI_FLAG_* immersive flags (deprecated since API
+        // 30 — LineageOS 18.1 here is exactly API 30) don't reliably reclaim
+        // the full gesture-nav area on real hardware, even though they
+        // appeared to work in the emulator: dumpsys on the real device showed
+        // the app window getting 1280x736 instead of the full 1280x800,
+        // which cascaded into dashboard-web's layout getting clipped.
+        // WindowInsetsController is the modern replacement.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -104,6 +110,15 @@ class MainActivity : AppCompatActivity() {
         webView.settings.loadWithOverviewMode = true
         webView.settings.useWideViewPort = true
         webView.setBackgroundColor(Color.BLACK)
+
+        // Without this, WebView maps CSS pixels to density-independent pixels
+        // rather than physical pixels — on this device's 213dpi panel (vs the
+        // 160dpi baseline), that scaled the whole 1280x800 layout up by
+        // ~1.33x, pushing about a quarter of the canvas off the right and
+        // bottom edges. Forcing initial scale to 100/density undoes that, so
+        // 1 CSS px in dashboard-web actually equals 1 physical pixel here.
+        val density = resources.displayMetrics.density
+        webView.setInitialScale((100 / density).toInt())
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {

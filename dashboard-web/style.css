@@ -31,7 +31,7 @@ html, body {
   margin: 0;
   padding: 0;
   width: 1280px;
-  height: 800px;
+  height: 100vh;
   overflow: hidden;
   background: var(--page);
   color: var(--text-primary);
