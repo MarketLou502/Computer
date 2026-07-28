@@ -191,35 +191,52 @@ camera support on most jailbroken IoT devices. Not worth fighting.
 
 Same "thin client, brains stay centralized" philosophy as the kiosk itself —
 add a second, purpose-built thin client for voice rather than overloading the
-display device. The satellite is Wi-Fi only; it needs a power outlet on the
-kitchen island, not a wired connection to the Mac Mini.
+display device. Wall-powered via USB-C, not battery — see the power note
+below for why that's a deliberate choice, not an oversight.
 
-- **Hardware: M5Stack Atom Echo** (~$13.50) — chosen over the official Home
-  Assistant Voice Preview Edition (~$60; nicer enclosure, zero-flash
-  phone-based setup) specifically because of the wake-word requirement below.
-  Voice PE only ships "Okay Nabu" / "Hey Jarvis" / "Hey Mycroft," with no
-  custom option in its supported setup flow. Atom Echo needs a one-time
-  browser-based firmware flash over USB (still no lasting wired dependency on
-  the Mac Mini).
-- **Wake word: "Hey Computer."** Already exists as a pre-trained openWakeWord
-  model — no training-from-scratch needed
-  ([openwakeword.com/library/48](https://openwakeword.com/library/48)).
-- **Personalization (do this once hardware is in hand):** record a handful of
-  "Hey Computer" clips from a few realistic spots/distances in the kitchen,
-  plus a few negative clips (normal talking, appliance noise), and run them
-  through openWakeWord's training tooling
-  ([openwakeword.com/train](https://openwakeword.com/train),
-  [openwakeword.com/voices](https://openwakeword.com/voices)) — either as a
-  voice-cloning injection into the synthetic training set, or as a custom
-  verifier second-stage model. Trades away responding to other voices for
-  higher accuracy on mine specifically — a pure win for a single-person
-  apartment device.
+- **Hardware: M5Stack Atom VoiceS3R** (~$14.50, official store:
+  [shop.m5stack.com/products/atom-echos3r-smart-speaker-dev-kit](https://shop.m5stack.com/products/atom-echos3r-smart-speaker-dev-kit))
+  — a single all-in-one unit (no separate base needed): ESP32-S3-PICO-1-N8R8
+  (dual-core Xtensa LX7, 8MB Flash + 8MB PSRAM), MEMS mic (65dB SNR), ES8311
+  24-bit audio codec. The "S3" specifically matters: it's the chip family
+  with enough compute to run wake-word detection *on the device itself*,
+  which is what makes the wake-word choice below possible without a
+  separate always-on streaming server process.
+  - Passed over: the original **ATOM Echo** (~$13.50, plain ESP32-PICO-D4,
+    no "S3") — $1 cheaper, and on-device wake word is technically possible
+    on it per community reports, but needs a non-default custom ESPHome
+    config and has reported stability issues (gets stuck in a
+    `STREAMING_MICROPHONE` state). Not worth the savings.
+  - Also available: **AtomS3R AI Chatbot Kit** (~$21.50) — same chip and
+    capability, just a two-piece controller + separate audio base instead of
+    one integrated unit. No benefit over the VoiceS3R here, more expensive.
+- **Wake word: "Computer."** An official, pre-trained **`microWakeWord`**
+  model — a correction from the first pass at this section, which planned
+  around `openWakeWord` instead. `openWakeWord` (source of the earlier
+  pre-trained "hey computer" model) generally can't run locally on an ESP32
+  at all — it needs the device to continuously stream raw audio over Wi-Fi to
+  a server that does the matching remotely. `microWakeWord` runs the
+  detection on the chip itself and only sends audio once the word is
+  actually heard
+  ([esphome/micro-wake-word-models](https://github.com/esphome/micro-wake-word-models)).
+
+### Power: wall-powered, not battery — checked, not assumed
+
+Looked into a battery pack (M5Stack's own "Atomic Battery Base," 200mAh,
+~$6) so this could sit cordless on the island. Real-world numbers from the
+community: about **1 hour of runtime for ~20 voice interactions** on that
+battery — continuous mic sampling plus a Wi-Fi radio that has to stay
+reachable is an inherently power-hungry combination, the same reason no
+commercial smart speaker (Echo, Nest, HomePod, Voice PE) runs untethered.
+Sticking with USB-C wall power as the primary source; a battery base could
+still be added later purely as a brief-outage buffer, not as how it runs
+day to day.
 
 ### Backend architecture
 
 ```
-kitchen satellite (M5Stack Atom Echo, Wi-Fi only)
-  → on-device wake word ("Hey Computer")
+kitchen satellite (M5Stack Atom VoiceS3R, Wi-Fi only, wall-powered)
+  → on-device wake word ("Computer", microWakeWord, runs on the ESP32-S3 itself)
   → streams command audio over LAN to Whisper (STT, Docker container on the Mac Mini)
   → Home Assistant Assist (intent matching)
   → calls OpenClaw's existing /api/* routes — same surface the dashboard uses
@@ -228,20 +245,27 @@ kitchen satellite (M5Stack Atom Echo, Wi-Fi only)
 ```
 
 Runs as Docker Compose on the Mac Mini, alongside OpenClaw: Home Assistant
-Container + Whisper + Piper + openWakeWord, wired together via HA's Assist
-pipeline settings. Docker Desktop on macOS doesn't do local mDNS
+Container + Whisper + Piper, wired together via HA's Assist pipeline
+settings. No separate wake-word server container needed — that's the point
+of the on-device engine (this simplifies the earlier plan, which assumed an
+`openWakeWord` container). Docker Desktop on macOS doesn't do local mDNS
 auto-discovery as cleanly as Linux, so first-time pairing of the satellite
 may need the Mac Mini's IP entered manually rather than relying on discovery.
 
 ### What's not built yet (this feature specifically)
 
-- Hardware purchase (M5Stack Atom Echo).
-- The Docker Compose stack on the Mac Mini (Home Assistant + Whisper + Piper
-  + openWakeWord).
+- Hardware purchase — M5Stack Atom VoiceS3R,
+  [$14.50 at shop.m5stack.com](https://shop.m5stack.com/products/atom-echos3r-smart-speaker-dev-kit).
+- The Docker Compose stack on the Mac Mini (Home Assistant + Whisper +
+  Piper).
 - The bridge from Home Assistant Assist intents to OpenClaw's `/api/*` routes
   — a new caller of the same routes the dashboard already needs, no new
   OpenClaw surface beyond what's already planned below.
-- The wake-word personalization pass (needs the physical hardware first).
+- A personalization pass, only if accuracy ends up needing it once it's in
+  daily use — real recordings from the kitchen fed through `microWakeWord`'s
+  own training tooling. Not assumed necessary up front, since "Computer"
+  ships as an official curated model rather than something trained from
+  scratch.
 
 ## What's not built yet
 
