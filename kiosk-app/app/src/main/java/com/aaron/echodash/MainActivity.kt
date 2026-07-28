@@ -193,7 +193,7 @@ class MainActivity : AppCompatActivity() {
         private const val PREFS_NAME = "kiosk_prefs"
         private const val KEY_URL = "dashboard_url"
         private const val KEY_TOKEN = "dashboard_token"
-        private const val DEFAULT_URL = "http://mac-mini.local:8080"
+        private const val DEFAULT_URL = "http://192.168.1.138:18795"
         private const val INITIAL_RETRY_MS = 5_000L
         private const val MAX_RETRY_MS = 60_000L
         private const val RELOAD_INTERVAL_MS = 30 * 60_000L // full reload every 30 min
