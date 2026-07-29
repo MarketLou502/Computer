@@ -12,6 +12,7 @@
   <header class="goals-bar" id="goalsBar">
     <h2 class="goals-title">Daily Goals</h2>
     <div class="goals-list" id="goalsList"><!-- goal chips injected --></div>
+    <button class="history-btn" data-history="goals" title="Goal history">History</button>
   </header>
 
   <main class="main-row">
@@ -26,23 +27,17 @@
       <div class="panel task-column" data-board="accenture">
         <h2 class="panel-title">Accenture</h2>
         <ul class="task-list" id="tasks-accenture"><!-- injected --></ul>
-        <form class="add-row" data-board="accenture">
-          <input type="text" placeholder="Add task…" />
-        </form>
+        <button class="history-btn history-btn-row" data-history="tasks:accenture">History</button>
       </div>
       <div class="panel task-column" data-board="personal">
         <h2 class="panel-title">Personal</h2>
         <ul class="task-list" id="tasks-personal"><!-- injected --></ul>
-        <form class="add-row" data-board="personal">
-          <input type="text" placeholder="Add task…" />
-        </form>
+        <button class="history-btn history-btn-row" data-history="tasks:personal">History</button>
       </div>
       <div class="panel task-column" data-board="market-lou">
         <h2 class="panel-title">Market Lou</h2>
         <ul class="task-list" id="tasks-market-lou"><!-- injected --></ul>
-        <form class="add-row" data-board="market-lou">
-          <input type="text" placeholder="Add task…" />
-        </form>
+        <button class="history-btn history-btn-row" data-history="tasks:market-lou">History</button>
       </div>
     </section>
   </main>
@@ -62,7 +57,10 @@
     </section>
 
     <section class="panel grocery-panel">
-      <h2 class="panel-title">Grocery List</h2>
+      <div class="panel-title-row">
+        <h2 class="panel-title">Grocery List</h2>
+        <button class="history-btn" data-history="grocery" title="Grocery history">History</button>
+      </div>
       <ul class="task-list" id="groceryList"><!-- injected --></ul>
       <form class="add-row" id="groceryAddRow">
         <input type="text" placeholder="Add item…" />
@@ -71,6 +69,19 @@
   </footer>
 
   <div class="offline-badge" id="offlineBadge">showing offline demo data</div>
+
+  <div class="history-overlay" id="historyOverlay">
+    <div class="history-panel">
+      <div class="history-header">
+        <h2 class="history-title" id="historyTitle">History</h2>
+        <button class="history-close" id="historyClose">✕</button>
+      </div>
+      <div class="history-body">
+        <nav class="history-toc" id="historyToc"><!-- year/month tree injected --></nav>
+        <div class="history-content" id="historyContent"><!-- selected month's items injected --></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="app.js"></script>

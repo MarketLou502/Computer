@@ -65,6 +65,62 @@ const MOCK = {
   },
 };
 
+// ---------- Fade-out for just-completed items ----------
+//
+// Purely a UI transition, not a record of when anything actually happened:
+// checked items stay visible (checked/green) for FADE_MS after the moment
+// *this session* sees them flip to done, then drop out of the active list.
+// Items that are already done the first time we see them (e.g. right after
+// a page reload) are hidden immediately rather than fading — we have no
+// session-local signal for when those actually completed, and guessing
+// would be the same mistake the Year->Month history view exists to avoid:
+// real completion dates come from the server (`doneDate`/goals history),
+// never from client-side timing.
+
+const FADE_MS = 60_000;
+const FADE_TICK_MS = 5_000;
+
+const fadeState = new Map(); // `${listKey}:${id}` -> { wasDone, doneSeenAt }
+const rawCache = new Map(); // listKey -> last-known raw items array
+const listRenderers = new Map(); // listKey -> (visibleItems) => void
+
+function applyFade(listKey, items) {
+  const now = Date.now();
+  return items.filter((item) => {
+    const key = `${listKey}:${item.id}`;
+    const prev = fadeState.get(key);
+    if (!item.done) {
+      fadeState.set(key, { wasDone: false, doneSeenAt: null });
+      return true;
+    }
+    if (!prev) {
+      fadeState.set(key, { wasDone: true, doneSeenAt: null }); // unknown completion time
+      return false;
+    }
+    if (!prev.wasDone) {
+      fadeState.set(key, { wasDone: true, doneSeenAt: now }); // just completed this session
+      return true;
+    }
+    return prev.doneSeenAt != null && (now - prev.doneSeenAt) <= FADE_MS;
+  });
+}
+
+function setListData(listKey, renderFn, items) {
+  listRenderers.set(listKey, renderFn);
+  rawCache.set(listKey, items);
+  renderFn(applyFade(listKey, items));
+}
+
+function rerenderList(listKey) {
+  const items = rawCache.get(listKey);
+  const renderFn = listRenderers.get(listKey);
+  if (items && renderFn) renderFn(applyFade(listKey, items));
+}
+
+setInterval(() => {
+  for (const listKey of rawCache.keys()) rerenderList(listKey);
+}, FADE_TICK_MS);
+
 let usingMock = false;
 
 function setOffline(offline) {
@@ -108,7 +164,7 @@ function renderGoals(goals) {
     chip.addEventListener('click', async () => {
       const nextDone = !goal.done;
       goal.done = nextDone;
-      chip.classList.toggle('done', nextDone);
+      rerenderList('goals');
       try {
         await api(`/api/goals/${goal.id}`, {
           method: 'PATCH',
@@ -134,7 +190,7 @@ function renderTasks(board, items) {
     li.addEventListener('click', async () => {
       const nextDone = !item.done;
       item.done = nextDone;
-      li.classList.toggle('done', nextDone);
+      rerenderList(`tasks:${board}`);
       try {
         await api(`/api/tasks/${board}/${item.id}`, {
           method: 'PATCH',
@@ -205,7 +261,7 @@ function renderGrocery(items) {
     li.addEventListener('click', async () => {
       const nextDone = !item.done;
       item.done = nextDone;
-      li.classList.toggle('done', nextDone);
+      rerenderList('grocery');
       try {
         await api(`/api/grocery/${item.id}`, {
           method: 'PATCH',
@@ -283,15 +339,133 @@ function formatHour(h) {
   return `${display} ${period}`;
 }
 
+// ---------- History overlay (Year -> Month browsing of completed items) ----------
+//
+// Real completion dates only, from the server (`doneDate` for tasks/grocery,
+// `date` for goals) — never approximated client-side. See the fade-out note
+// above for why that distinction matters.
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+
+const HISTORY_SOURCES = {
+  'tasks:accenture': { title: 'Accenture — History', base: '/api/tasks/accenture/history', label: (i) => i.text, date: (i) => i.doneDate },
+  'tasks:personal': { title: 'Personal — History', base: '/api/tasks/personal/history', label: (i) => i.text, date: (i) => i.doneDate },
+  'tasks:market-lou': { title: 'Market Lou — History', base: '/api/tasks/market-lou/history', label: (i) => i.text, date: (i) => i.doneDate },
+  grocery: { title: 'Grocery List — History', base: '/api/grocery/history', label: (i) => i.text, date: (i) => i.doneDate },
+  goals: { title: 'Daily Goals — History', base: '/api/goals/history', label: (i) => i.label, date: (i) => i.date },
+};
+
+let activeHistorySource = null;
+
+function openHistory(sourceKey) {
+  const source = HISTORY_SOURCES[sourceKey];
+  if (!source) return;
+  activeHistorySource = source;
+  document.getElementById('historyTitle').textContent = source.title;
+  document.getElementById('historyOverlay').classList.add('open');
+  loadHistoryToc(source);
+}
+
+function closeHistory() {
+  document.getElementById('historyOverlay').classList.remove('open');
+  activeHistorySource = null;
+}
+
+async function loadHistoryToc(source) {
+  const toc = document.getElementById('historyToc');
+  const content = document.getElementById('historyContent');
+  toc.innerHTML = '';
+  content.innerHTML = '';
+  let months = [];
+  try {
+    const data = await api(`${source.base}`);
+    months = data.months || [];
+  } catch (err) {
+    toc.innerHTML = '<div class="history-empty">Unable to load history.</div>';
+    return;
+  }
+  if (!months.length) {
+    toc.innerHTML = '<div class="history-empty">No completed items yet.</div>';
+    return;
+  }
+
+  const byYear = new Map();
+  months.forEach((m) => {
+    if (!byYear.has(m.year)) byYear.set(m.year, []);
+    byYear.get(m.year).push(m);
+  });
+
+  let first = true;
+  byYear.forEach((monthList, year) => {
+    const yearEl = document.createElement('div');
+    yearEl.className = `history-year${first ? ' expanded' : ''}`;
+    const monthListEl = document.createElement('div');
+    monthListEl.className = 'history-month-list';
+
+    monthList.forEach((m) => {
+      const monthEl = document.createElement('div');
+      monthEl.className = 'history-month-item';
+      monthEl.textContent = `${MONTH_NAMES[m.month - 1]} (${m.count})`;
+      monthEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toc.querySelectorAll('.history-month-item.selected').forEach((el) => el.classList.remove('selected'));
+        monthEl.classList.add('selected');
+        loadHistoryMonth(source, m.year, m.month);
+      });
+      monthListEl.appendChild(monthEl);
+      if (first && m === monthList[0]) monthEl.classList.add('selected');
+    });
+
+    const yearHeader = document.createElement('div');
+    yearHeader.textContent = String(year);
+    yearHeader.addEventListener('click', () => yearEl.classList.toggle('expanded'));
+
+    yearEl.appendChild(yearHeader);
+    yearEl.appendChild(monthListEl);
+    toc.appendChild(yearEl);
+
+    if (first) loadHistoryMonth(source, monthList[0].year, monthList[0].month);
+    first = false;
+  });
+}
+
+async function loadHistoryMonth(source, year, month) {
+  const content = document.getElementById('historyContent');
+  content.innerHTML = '';
+  let items = [];
+  try {
+    const data = await api(`${source.base}/${year}/${month}`);
+    items = data.items || [];
+  } catch (err) {
+    content.innerHTML = '<div class="history-empty">Unable to load this month.</div>';
+    return;
+  }
+  if (!items.length) {
+    content.innerHTML = '<div class="history-empty">Nothing completed this month.</div>';
+    return;
+  }
+  const list = document.createElement('ul');
+  list.className = 'task-list';
+  items.forEach((item) => {
+    const li = document.createElement('li');
+    li.className = 'task-item done';
+    li.innerHTML = `<span class="box"></span><span class="text">${escapeHtml(source.label(item))}</span><span class="history-item-date">${escapeHtml(source.date(item) || '')}</span>`;
+    list.appendChild(li);
+  });
+  content.appendChild(list);
+}
+
 // ---------- Boot + refresh loops ----------
 
 async function refreshGoals() {
-  renderGoals(await load('/api/goals', MOCK.goals).then((d) => d.goals || d));
+  const goals = await load('/api/goals', MOCK.goals).then((d) => d.goals || d);
+  setListData('goals', renderGoals, goals);
 }
 async function refreshTasks() {
   for (const board of ['accenture', 'personal', 'market-lou']) {
     const data = await load(`/api/tasks/${board}`, { items: MOCK.tasks[board] });
-    renderTasks(board, data.items || data);
+    setListData(`tasks:${board}`, (items) => renderTasks(board, items), data.items || data);
   }
 }
 async function refreshHealth() {
@@ -302,7 +476,7 @@ async function refreshFinancials() {
 }
 async function refreshGrocery() {
   const data = await load('/api/grocery', { items: MOCK.grocery });
-  renderGrocery(data.items || data);
+  setListData('grocery', renderGrocery, data.items || data);
 }
 async function refreshCalendar() {
   const today = new Date().toISOString().slice(0, 10);
@@ -323,15 +497,13 @@ function init() {
       refreshGrocery();
     }
   });
-  document.querySelectorAll('.add-row[data-board]').forEach((form) => {
-    const board = form.dataset.board;
-    wireAddRow(form, async (text) => {
-      try {
-        await api(`/api/tasks/${board}`, { method: 'POST', body: JSON.stringify({ text }) });
-      } finally {
-        refreshTasks();
-      }
-    });
+
+  document.querySelectorAll('.history-btn[data-history]').forEach((btn) => {
+    btn.addEventListener('click', () => openHistory(btn.dataset.history));
+  });
+  document.getElementById('historyClose').addEventListener('click', closeHistory);
+  document.getElementById('historyOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'historyOverlay') closeHistory();
   });
 
   loop(refreshGoals, REFRESH_MS.goals);
