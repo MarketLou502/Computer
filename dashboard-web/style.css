@@ -184,7 +184,7 @@ html, body {
 }
 
 .calendar-panel {
-  flex: 2 1 0;
+  flex: 1 1 0;
 }
 
 .calendar-scroll {
@@ -260,7 +260,7 @@ html, body {
 }
 
 .tasks-row {
-  flex: 1.4 1 0;
+  flex: 1 1 0;
   display: flex;
   gap: var(--gap);
   min-height: 0;
